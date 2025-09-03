@@ -1,0 +1,1 @@
+enum NackyStatus { ok, warn, minor, critical, off }
