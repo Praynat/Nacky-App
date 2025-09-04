@@ -1,12 +1,9 @@
 name: Build APK (Flutter)
 
 on:
+  workflow_dispatch:   # permet de lancer manuellement depuis l’onglet Actions
   push:
-    branches: ["main"]     # build à chaque push sur main
-    tags: ["v*"]           # si tu pousses un tag v1.0.0 → Release avec APK
-  pull_request:
-    branches: ["main"]
-  workflow_dispatch:
+    tags: ["v*"]       # build automatique uniquement quand tu crées un tag (ex: v1.0.0)
 
 jobs:
   build-android:
