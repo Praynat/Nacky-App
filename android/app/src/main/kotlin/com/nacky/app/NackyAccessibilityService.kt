@@ -1,4 +1,4 @@
-package com.example.nacky
+package com.nacky.app
 
 import android.accessibilityservice.AccessibilityService
 import android.os.Bundle

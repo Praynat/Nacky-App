@@ -1,4 +1,4 @@
-package com.example.nacky
+package com.nacky.app
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -21,7 +21,7 @@ class MainActivity: FlutterActivity() {
                 contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
               ) ?: ""
               // IMPORTANT: le nom complet du service
-              enabledServices.contains("$packageName/com.example.nacky.NackyAccessibilityService") ||
+              enabledServices.contains("$packageName/com.nacky.app.NackyAccessibilityService") ||
               enabledServices.contains("$packageName/.NackyAccessibilityService")
             } catch (_: Throwable) { false }
             result.success(enabled)

@@ -1,4 +1,4 @@
-package com.example.nacky
+package com.nacky.app
 
 object ForbiddenStore {
     @Volatile var words: Set<String> = emptySet()
