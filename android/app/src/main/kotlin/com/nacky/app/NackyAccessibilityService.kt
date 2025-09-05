@@ -72,9 +72,15 @@ class NackyAccessibilityService : AccessibilityService() {
         return total
     }
 
+    private fun tokenizeUnicode(text: String): List<String> {
+        // Split on non-letter, non-mark, non-digit boundaries (Unicode-aware)
+        // This now preserves non-Latin scripts like Hebrew, Arabic, Chinese, etc.
+        return text.split(Regex("[^\\p{L}\\p{M}\\p{N}]+")).filter { it.isNotBlank() }
+    }
+
     private fun matchesForbidden(s: String): Boolean {
         if (ForbiddenStore.words.isEmpty()) return false
-        val tokens = s.split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }
+        val tokens = tokenizeUnicode(s)
         for (t in tokens) if (t in ForbiddenStore.words) return true
         return false
     }
@@ -82,7 +88,7 @@ class NackyAccessibilityService : AccessibilityService() {
     private fun countMatches(s: String): Int {
         if (ForbiddenStore.words.isEmpty()) return 0
         var c = 0
-        val tokens = s.split(Regex("[^a-z0-9]+")).filter { it.isNotBlank() }
+        val tokens = tokenizeUnicode(s)
         for (t in tokens) if (t in ForbiddenStore.words) c++
         return c
     }

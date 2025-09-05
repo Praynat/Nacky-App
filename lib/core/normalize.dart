@@ -11,3 +11,12 @@ String normalizeWord(String input) {
   }
   return sb.toString();
 }
+
+List<String> tokenizeUnicode(String text) {
+  // Unicode-aware tokenization: split on non-letter, non-mark, non-digit
+  // Using RegExp with Unicode property escapes
+  final tokens = text.split(RegExp(r'[^\p{L}\p{M}\p{N}]+', unicode: true))
+      .where((token) => token.isNotEmpty)
+      .toList();
+  return tokens;
+}
