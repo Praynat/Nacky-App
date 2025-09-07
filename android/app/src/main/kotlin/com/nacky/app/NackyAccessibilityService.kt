@@ -88,8 +88,32 @@ class NackyAccessibilityService : AccessibilityService() {
     }
 }
 
+/**
+ * Normalizes text for consistent processing across languages and platforms.
+ * 
+ * This function:
+ * - Converts to lowercase
+ * - Removes accent marks (é → e) using Unicode NFD normalization
+ * - Squashes repeated separators (multiple spaces → single space)
+ * - Preserves all scripts (Hebrew, Arabic, etc.)
+ * 
+ * Examples:
+ * - "Crème brûlée!" → "creme brulee!"
+ * - "HELLO   WORLD" → "hello world"
+ * - "עברית123" → "עברית123"
+ */
 private fun String.normalizeWord(): String {
-    val lower = this.lowercase(Locale.ROOT)
+    if (this.isEmpty()) return this
+    
+    // Step 1: Trim and lowercase
+    val lower = this.trim().lowercase(Locale.ROOT)
+    
+    // Step 2: Unicode NFD normalization to decompose characters
     val norm = Normalizer.normalize(lower, Normalizer.Form.NFD)
-    return norm.replace("\\p{Mn}+".toRegex(), "")
+    
+    // Step 3: Remove combining marks (diacritics)
+    val withoutDiacritics = norm.replace("\\p{Mn}+".toRegex(), "")
+    
+    // Step 4: Squash repeated separators (spaces, tabs, etc.)
+    return withoutDiacritics.replace("\\s+".toRegex(), " ").trim()
 }
