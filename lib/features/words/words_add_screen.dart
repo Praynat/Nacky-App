@@ -23,11 +23,16 @@ class _WordsAddScreenState extends State<WordsAddScreen> {
     if (ok) {
     final words = await _repo.getAllForFilter(); 
     await AndroidBridge.sendWordList(words);    
-    // V2 placeholder: also send structured pattern payload (monitoring draft)
-    await AndroidBridge.updatePatterns(words: words, meta: {
-      'source': 'words_add_screen',
-      'reason': 'add_word',
-    });
+    final patterns = await _repo.buildPatterns();
+    await AndroidBridge.updatePatterns(
+      words: words,
+      meta: {
+        'source': 'words_add_screen',
+        'reason': 'add_word',
+        'patterns_count': patterns.length,
+        'items_total': words.length,
+      },
+    );
   }                                             
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? 'Ajouté.' : 'Déjà présent ou invalide.'),

@@ -47,10 +47,16 @@ class _WordsManageScreenState extends State<WordsManageScreen> {
       await _repo.add(result);
       final words = await _repo.getAllForFilter();
       await AndroidBridge.sendWordList(words);
-      await AndroidBridge.updatePatterns(words: words, meta: {
-        'source': 'words_manage_screen',
-        'reason': 'edit_word',
-      });
+      final patterns = await _repo.buildPatterns();
+      await AndroidBridge.updatePatterns(
+        words: words,
+        meta: {
+          'source': 'words_manage_screen',
+          'reason': 'edit_word',
+          'patterns_count': patterns.length,
+          'items_total': words.length,
+        },
+      );
       setState(() {});
     }
   }
@@ -108,10 +114,16 @@ class _WordsManageScreenState extends State<WordsManageScreen> {
                             } else {
                               final words = await _repo.getAllForFilter();
                               await AndroidBridge.sendWordList(words);
-                              await AndroidBridge.updatePatterns(words: words, meta: {
-                                'source': 'words_manage_screen',
-                                'reason': 'delete_word',
-                              });
+                              final patterns = await _repo.buildPatterns();
+                              await AndroidBridge.updatePatterns(
+                                words: words,
+                                meta: {
+                                  'source': 'words_manage_screen',
+                                  'reason': 'delete_word',
+                                  'patterns_count': patterns.length,
+                                  'items_total': words.length,
+                                },
+                              );
                             }
                             setState(() {});
                           },

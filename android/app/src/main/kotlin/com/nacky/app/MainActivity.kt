@@ -51,8 +51,16 @@ class MainActivity: FlutterActivity() {
               ForbiddenStore.words = words.map { it.lowercase() }.toSet()
             }
             val version = call.argument<Int>("version") ?: -1
-            val phase = (call.argument<Map<String, Any>>("meta") ?: emptyMap())["phase"]
-            Log.i("Nacky", "updatePatterns received (version=$version, words=${words.size}, phase=$phase)")
+            val meta = call.argument<Map<String, Any>>("meta") ?: emptyMap()
+            val phase = meta["phase"]
+            val patternsCount = meta["patterns_count"]
+            val itemsTotal = meta["items_total"]
+            // Rough payload size approximation
+            val approxSize = words.sumOf { it.length } + (meta.toString().length)
+            Log.i(
+              "Nacky",
+              "updatePatterns(version=$version, words=${words.size}, patterns=$patternsCount, items=$itemsTotal, phase=$phase, ~payloadChars=$approxSize)"
+            )
             result.success(null)
           }
           else -> result.notImplemented()

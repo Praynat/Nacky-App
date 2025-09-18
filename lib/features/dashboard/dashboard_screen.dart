@@ -170,12 +170,22 @@ void initState() {
 
 Future<void> _pushWordsToAndroid() async {
   try {
-    final words = await WordsRepo().getAllForFilter(); // seed + user, déjà normalisés
+    final repo = WordsRepo();
+    final words = await repo.getAllForFilter(); // legacy push
     await AndroidBridge.sendWordList(words);
-    await AndroidBridge.updatePatterns(words: words, meta: {
-      'source': 'dashboard',
-      'reason': 'initial_push',
-    });
+    // New structured patterns payload
+    final patterns = await repo.buildPatterns();
+    // For now we still pass words + meta; in future updatePatterns will
+    // accept full payload. We include counts for Android logging.
+    await AndroidBridge.updatePatterns(
+      words: words,
+      meta: {
+        'source': 'dashboard',
+        'reason': 'initial_push',
+        'patterns_count': patterns.length,
+        'items_total': words.length,
+      },
+    );
   } catch (_) {
     // silencieux
   }
