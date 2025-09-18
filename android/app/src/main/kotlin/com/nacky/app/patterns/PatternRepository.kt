@@ -42,13 +42,48 @@ object PatternRepository {
             val categories = payload.patterns.groupingBy { it.category }.eachCount()
             val severities = payload.patterns.groupingBy { it.severity }.eachCount()
 
-            Log.i("Nacky", "PatternRepository update: patterns=${payload.patterns.size}, items=$itemTotal, categories=$categories, severities=$severities")
+            try {
+                Log.i(
+                    "Nacky",
+                    "PatternRepository update: patterns=${payload.patterns.size}, items=$itemTotal, categories=$categories, severities=$severities"
+                )
+            } catch (_: Throwable) { /* ignore in unit tests */ }
             UpdateResult(true, payload.patterns.size, itemTotal, categories, severities, null)
         } catch (e: Exception) {
-            Log.e("Nacky", "PatternRepository update failed: ${e.message}", e)
+            try {
+                Log.e("Nacky", "PatternRepository update failed: ${e.message}", e)
+            } catch (_: Throwable) { /* ignore in unit tests */ }
             UpdateResult(false, 0, 0, emptyMap(), emptyMap(), e.message)
         }
     }
+
+        /** Pre-tokenize pattern entries into PhraseEntry (engine adapter layer). */
+        fun pretokenizedEntries(
+            normalizer: (String) -> String,
+            tokenizer: (String) -> List<String>,
+        ): List<com.nacky.app.engine.PhraseEntry> {
+            val out = mutableListOf<com.nacky.app.engine.PhraseEntry>()
+            val seen = HashSet<List<String>>()
+            for (p in all()) {
+                for (raw in p.tokensOrPhrases) {
+                    val norm = normalizer(raw)
+                    if (norm.isBlank()) continue
+                    val toks = tokenizer(norm).filter { it.isNotBlank() }
+                    if (toks.isEmpty()) continue
+                    if (seen.add(toks)) {
+                        out.add(
+                            com.nacky.app.engine.PhraseEntry(
+                                patternId = p.id,
+                                category = p.category,
+                                severity = p.severity,
+                                tokenSequence = toks
+                            )
+                        )
+                    }
+                }
+            }
+            return out
+        }
 
     private fun fromMap(map: Map<String, Any?>): PatternsPayload {
         val version = (map["version"] as? Number)?.toInt()
