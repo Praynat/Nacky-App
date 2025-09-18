@@ -18,7 +18,7 @@ class Pattern {
     'id': id,
     'category': category,
     'severity': severity,
-    'items': tokensOrPhrases,
+    'tokensOrPhrases': tokensOrPhrases,
   };
 }
 

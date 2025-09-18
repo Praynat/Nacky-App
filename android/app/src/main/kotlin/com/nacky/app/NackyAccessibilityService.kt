@@ -6,6 +6,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.text.Normalizer
 import java.util.Locale
+// Future: use patterns instead of flat ForbiddenStore.words
+import com.nacky.app.patterns.PatternRepository
 
 class NackyAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {}

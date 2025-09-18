@@ -9,6 +9,7 @@ import 'module_row.dart';
 import 'activity_list.dart';
 import 'quick_action_button.dart';
 import '../../core/platform/android_bridge.dart';
+import '../../core/pattern.dart';
 import '../words/words_repo.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -175,17 +176,17 @@ Future<void> _pushWordsToAndroid() async {
     await AndroidBridge.sendWordList(words);
     // New structured patterns payload
     final patterns = await repo.buildPatterns();
-    // For now we still pass words + meta; in future updatePatterns will
-    // accept full payload. We include counts for Android logging.
-    await AndroidBridge.updatePatterns(
-      words: words,
-      meta: {
-        'source': 'dashboard',
-        'reason': 'initial_push',
-        'patterns_count': patterns.length,
-        'items_total': words.length,
-      },
-    );
+    final payload = patternsToPayload(patterns);
+    // Add transmission meta for future debugging
+    payload['meta'] = {
+      'source': 'dashboard',
+      'reason': 'initial_push',
+      'items_total': words.length,
+    };
+    // Dart side log
+    // ignore: avoid_print
+    print('[Patterns] Sending ${patterns.length} patterns / ${words.length} tokens');
+    await AndroidBridge.updatePatternsFull(payload);
   } catch (_) {
     // silencieux
   }

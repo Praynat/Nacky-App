@@ -20,20 +20,10 @@ class AndroidBridge {
     await _m.invokeMethod('sendWordList', {'words': words});
   }
 
-  /// Temporary V2 placeholder: send structured pattern config to Android.
-  /// Will evolve to include multi-phase detection metadata. For now just
-  /// sends a stub payload so Android side can log receipt.
-  static Future<void> updatePatterns({
-    List<String>? words,
-    Map<String, dynamic>? meta,
-  }) async {
+  /// Sends full structured patterns payload produced by patternsToPayload().
+  /// Accepts a pre-built map to keep formatting logic outside of the bridge.
+  static Future<void> updatePatternsFull(Map<String, dynamic> fullPayload) async {
     if (!Platform.isAndroid) return;
-    final payload = <String, dynamic>{
-      'version': 1,
-      'timestamp': DateTime.now().toIso8601String(),
-      'words': words ?? <String>[],
-      'meta': meta ?? <String, dynamic>{'phase': 'monitoring-draft'},
-    };
-    await _m.invokeMethod('updatePatterns', payload);
+    await _m.invokeMethod('updatePatterns', fullPayload);
   }
 }

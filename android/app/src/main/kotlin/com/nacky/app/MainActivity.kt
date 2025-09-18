@@ -6,6 +6,7 @@ import io.flutter.plugin.common.MethodChannel
 import android.provider.Settings
 import android.content.Intent
 import android.util.Log
+import com.nacky.app.patterns.PatternRepository
 
 class MainActivity: FlutterActivity() {
   private val CHANNEL = "nacky/android"
@@ -44,23 +45,21 @@ class MainActivity: FlutterActivity() {
             result.success(null)
           }
           "updatePatterns" -> {
-            // Placeholder handler for structured pattern configuration (V2).
-            // We simply log receipt and (optionally) update words if provided.
-            val words = call.argument<List<String>>("words") ?: emptyList()
-            if (words.isNotEmpty()) {
-              ForbiddenStore.words = words.map { it.lowercase() }.toSet()
+            val arg = call.arguments
+            val update = PatternRepository.updateFromPayload(arg)
+            if (update.ok) {
+              Log.i(
+                "Nacky",
+                "updatePatterns: received payload patterns=${update.patternCount} items=${update.itemTotal} categories=${update.categories} severities=${update.severities}"
+              )
+            } else {
+              Log.e("Nacky", "updatePatterns: parse failed ${update.error}")
             }
-            val version = call.argument<Int>("version") ?: -1
-            val meta = call.argument<Map<String, Any>>("meta") ?: emptyMap()
-            val phase = meta["phase"]
-            val patternsCount = meta["patterns_count"]
-            val itemsTotal = meta["items_total"]
-            // Rough payload size approximation
-            val approxSize = words.sumOf { it.length } + (meta.toString().length)
-            Log.i(
-              "Nacky",
-              "updatePatterns(version=$version, words=${words.size}, patterns=$patternsCount, items=$itemsTotal, phase=$phase, ~payloadChars=$approxSize)"
-            )
+            // Legacy support: if a flat words list still arrives (old app version)
+            val legacyWords = (if (arg is Map<*, *>) arg["words"] else null) as? List<*>
+            if (legacyWords != null && legacyWords.isNotEmpty()) {
+              ForbiddenStore.words = legacyWords.mapNotNull { it?.toString()?.lowercase() }.toSet()
+            }
             result.success(null)
           }
           else -> result.notImplemented()
