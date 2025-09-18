@@ -5,6 +5,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.provider.Settings
 import android.content.Intent
+import android.util.Log
 
 class MainActivity: FlutterActivity() {
   private val CHANNEL = "nacky/android"
@@ -40,6 +41,18 @@ class MainActivity: FlutterActivity() {
           "sendWordList" -> {
             val list = (call.argument<List<String>>("words") ?: emptyList())
             ForbiddenStore.words = list.map { it.lowercase() }.toSet()
+            result.success(null)
+          }
+          "updatePatterns" -> {
+            // Placeholder handler for structured pattern configuration (V2).
+            // We simply log receipt and (optionally) update words if provided.
+            val words = call.argument<List<String>>("words") ?: emptyList()
+            if (words.isNotEmpty()) {
+              ForbiddenStore.words = words.map { it.lowercase() }.toSet()
+            }
+            val version = call.argument<Int>("version") ?: -1
+            val phase = (call.argument<Map<String, Any>>("meta") ?: emptyMap())["phase"]
+            Log.i("Nacky", "updatePatterns received (version=$version, words=${words.size}, phase=$phase)")
             result.success(null)
           }
           else -> result.notImplemented()

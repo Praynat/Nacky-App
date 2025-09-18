@@ -172,6 +172,10 @@ Future<void> _pushWordsToAndroid() async {
   try {
     final words = await WordsRepo().getAllForFilter(); // seed + user, déjà normalisés
     await AndroidBridge.sendWordList(words);
+    await AndroidBridge.updatePatterns(words: words, meta: {
+      'source': 'dashboard',
+      'reason': 'initial_push',
+    });
   } catch (_) {
     // silencieux
   }
