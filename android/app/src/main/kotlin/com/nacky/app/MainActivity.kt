@@ -5,6 +5,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.provider.Settings
 import android.content.Intent
+import android.util.Log
+import com.nacky.app.patterns.PatternRepository
 
 class MainActivity: FlutterActivity() {
   private val CHANNEL = "nacky/android"
@@ -40,6 +42,24 @@ class MainActivity: FlutterActivity() {
           "sendWordList" -> {
             val list = (call.argument<List<String>>("words") ?: emptyList())
             ForbiddenStore.words = list.map { it.lowercase() }.toSet()
+            result.success(null)
+          }
+          "updatePatterns" -> {
+            val arg = call.arguments
+            val update = PatternRepository.updateFromPayload(arg)
+            if (update.ok) {
+              Log.i(
+                "Nacky",
+                "updatePatterns: received payload patterns=${update.patternCount} items=${update.itemTotal} categories=${update.categories} severities=${update.severities}"
+              )
+            } else {
+              Log.e("Nacky", "updatePatterns: parse failed ${update.error}")
+            }
+            // Legacy support: if a flat words list still arrives (old app version)
+            val legacyWords = (if (arg is Map<*, *>) arg["words"] else null) as? List<*>
+            if (legacyWords != null && legacyWords.isNotEmpty()) {
+              ForbiddenStore.words = legacyWords.mapNotNull { it?.toString()?.lowercase() }.toSet()
+            }
             result.success(null)
           }
           else -> result.notImplemented()

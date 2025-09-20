@@ -19,4 +19,11 @@ class AndroidBridge {
     if (!Platform.isAndroid) return;
     await _m.invokeMethod('sendWordList', {'words': words});
   }
+
+  /// Sends full structured patterns payload produced by patternsToPayload().
+  /// Accepts a pre-built map to keep formatting logic outside of the bridge.
+  static Future<void> updatePatternsFull(Map<String, dynamic> fullPayload) async {
+    if (!Platform.isAndroid) return;
+    await _m.invokeMethod('updatePatterns', fullPayload);
+  }
 }

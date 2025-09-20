@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'words_repo.dart';
 import '../../core/platform/android_bridge.dart';
+import '../../core/pattern.dart';
 
 
 class WordsAddScreen extends StatefulWidget {
@@ -23,6 +24,16 @@ class _WordsAddScreenState extends State<WordsAddScreen> {
     if (ok) {
     final words = await _repo.getAllForFilter(); 
     await AndroidBridge.sendWordList(words);    
+    final patterns = await _repo.buildPatterns();
+    final payload = patternsToPayload(patterns);
+    payload['meta'] = {
+      'source': 'words_add_screen',
+      'reason': 'add_word',
+      'items_total': words.length,
+    };
+    // ignore: avoid_print
+    print('[Patterns] Add screen sending ${patterns.length} patterns / ${words.length} tokens');
+    await AndroidBridge.updatePatternsFull(payload);
   }                                             
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(ok ? 'Ajouté.' : 'Déjà présent ou invalide.'),

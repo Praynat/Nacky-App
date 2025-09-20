@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'words_repo.dart';
 import '../guardian/pin_dialog.dart';
 import '../../core/platform/android_bridge.dart';
+import '../../core/pattern.dart';
 
 class WordsManageScreen extends StatefulWidget {
   const WordsManageScreen({super.key});
@@ -47,6 +48,16 @@ class _WordsManageScreenState extends State<WordsManageScreen> {
       await _repo.add(result);
       final words = await _repo.getAllForFilter();
       await AndroidBridge.sendWordList(words);
+      final patterns = await _repo.buildPatterns();
+      final payload = patternsToPayload(patterns);
+      payload['meta'] = {
+        'source': 'words_manage_screen',
+        'reason': 'edit_word',
+        'items_total': words.length,
+      };
+      // ignore: avoid_print
+      print('[Patterns] Manage edit sending ${patterns.length} patterns / ${words.length} tokens');
+      await AndroidBridge.updatePatternsFull(payload);
       setState(() {});
     }
   }
@@ -104,6 +115,16 @@ class _WordsManageScreenState extends State<WordsManageScreen> {
                             } else {
                               final words = await _repo.getAllForFilter();
                               await AndroidBridge.sendWordList(words);
+                              final patterns = await _repo.buildPatterns();
+                              final payload = patternsToPayload(patterns);
+                              payload['meta'] = {
+                                'source': 'words_manage_screen',
+                                'reason': 'delete_word',
+                                'items_total': words.length,
+                              };
+                              // ignore: avoid_print
+                              print('[Patterns] Manage delete sending ${patterns.length} patterns / ${words.length} tokens');
+                              await AndroidBridge.updatePatternsFull(payload);
                             }
                             setState(() {});
                           },

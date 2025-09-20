@@ -9,6 +9,7 @@ import 'module_row.dart';
 import 'activity_list.dart';
 import 'quick_action_button.dart';
 import '../../core/platform/android_bridge.dart';
+import '../../core/pattern.dart';
 import '../words/words_repo.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -170,8 +171,22 @@ void initState() {
 
 Future<void> _pushWordsToAndroid() async {
   try {
-    final words = await WordsRepo().getAllForFilter(); // seed + user, déjà normalisés
+    final repo = WordsRepo();
+    final words = await repo.getAllForFilter(); // legacy push
     await AndroidBridge.sendWordList(words);
+    // New structured patterns payload
+    final patterns = await repo.buildPatterns();
+    final payload = patternsToPayload(patterns);
+    // Add transmission meta for future debugging
+    payload['meta'] = {
+      'source': 'dashboard',
+      'reason': 'initial_push',
+      'items_total': words.length,
+    };
+    // Dart side log
+    // ignore: avoid_print
+    print('[Patterns] Sending ${patterns.length} patterns / ${words.length} tokens');
+    await AndroidBridge.updatePatternsFull(payload);
   } catch (_) {
     // silencieux
   }

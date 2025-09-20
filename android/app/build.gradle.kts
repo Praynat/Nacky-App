@@ -37,3 +37,10 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    // Unit testing
+    testImplementation("junit:junit:4.13.2")
+    // Use explicit Kotlin test dependency version aligned with Flutter's bundled Kotlin (adjust if Kotlin version changes)
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.22")
+}

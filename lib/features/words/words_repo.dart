@@ -1,6 +1,8 @@
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/normalize.dart';
+import '../../core/pattern.dart';
+import '../../core/pattern_compiler.dart';
 
 class WordsRepo {
   static const _kUser = 'words_user_v1';
@@ -48,5 +50,13 @@ class WordsRepo {
     final ok = list.remove(word);
     if (ok) await sp.setStringList(_kUser, list);
     return ok;
+  }
+
+  /// Builds structured patterns (V2). Currently a single umbrella pattern
+  /// grouping all normalized tokens (seed + user). Future: smarter grouping.
+  Future<List<Pattern>> buildPatterns() async {
+    final all = await getAllForFilter();
+    final compiler = const PatternCompiler();
+    return compiler.compileSingleGroup(all);
   }
 }
