@@ -134,4 +134,35 @@ object PatternRepository {
         }
         return PatternsPayload(version = version, patterns = list, meta = meta)
     }
+
+    /** Build single-word term entries (for Step2Engine). */
+    fun singleWordTerms(
+        normalizer: (String) -> String,
+        tokenizer: (String) -> List<String>,
+    ): List<com.nacky.app.engine.TermEntry> {
+        val out = mutableListOf<com.nacky.app.engine.TermEntry>()
+        val seen = HashSet<Pair<String, String>>() // (patternId, term)
+        for (p in all()) {
+            for (raw in p.tokensOrPhrases) {
+                val norm = normalizer(raw)
+                if (norm.isBlank()) continue
+                val toks = tokenizer(norm).filter { it.isNotBlank() }
+                if (toks.size == 1) {
+                    val term = toks[0]
+                    val key = p.id to term
+                    if (seen.add(key)) {
+                        out.add(
+                            com.nacky.app.engine.TermEntry(
+                                patternId = p.id,
+                                term = term,
+                                category = p.category,
+                                severity = p.severity,
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        return out
+    }
 }

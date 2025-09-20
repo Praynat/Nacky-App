@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.nacky.app.engine.Step3EngineTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2025-09-19T14:33:20" hostname="GUEDALIA-FIXE" time="0.013">
+  <properties/>
+  <testcase name="boundaryBlocksPrefix" classname="com.nacky.app.engine.Step3EngineTest" time="0.002"/>
+  <testcase name="boundaryBlocksSuffix" classname="com.nacky.app.engine.Step3EngineTest" time="0.001"/>
+  <testcase name="exactWordBlocks" classname="com.nacky.app.engine.Step3EngineTest" time="0.0"/>
+  <testcase name="shortHostDominated" classname="com.nacky.app.engine.Step3EngineTest" time="0.0"/>
+  <testcase name="longHostAllows" classname="com.nacky.app.engine.Step3EngineTest" time="0.008"/>
+  <testcase name="severityHighBlocks" classname="com.nacky.app.engine.Step3EngineTest" time="0.0"/>
+  <testcase name="fallbackAllow" classname="com.nacky.app.engine.Step3EngineTest" time="0.0"/>
+  <testcase name="hebrewLexiconAllow" classname="com.nacky.app.engine.Step3EngineTest" time="0.001"/>
+  <testcase name="segmentationBlocks" classname="com.nacky.app.engine.Step3EngineTest" time="0.0"/>
+  <testcase name="lexiconSafeFrench" classname="com.nacky.app.engine.Step3EngineTest" time="0.0"/>
+  <system-out><![CDATA[longHostAllows decision: Decision(action=ALLOW, reason=R6, host=compassion)
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
