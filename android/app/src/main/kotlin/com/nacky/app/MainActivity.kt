@@ -7,6 +7,35 @@ import android.provider.Settings
 import android.content.Intent
 import android.util.Log
 import com.nacky.app.patterns.PatternRepository
+import com.nacky.app.persistence.SettingsStore
+import java.util.concurrent.atomic.AtomicReference
+import kotlinx.serialization.Serializable
+
+// Runtime settings updated from Flutter (no persistence on Android side yet)
+@Serializable
+data class DetectionSettings(
+  val liveEnabled: Boolean = false,
+  val monitoringEnabled: Boolean = true,
+  val minOccurrences: Int = 3,
+  val windowSeconds: Long = 300,
+  val cooldownMs: Long = 1000,
+  val countMode: String = "UNIQUE_PER_SNAPSHOT",
+  val blockHighSeverityOnly: Boolean = false,
+  val debounceMs: Long = 250,
+) {
+  fun normalized(): DetectionSettings {
+    val cm = if (countMode == "ALL_MATCHES") "ALL_MATCHES" else "UNIQUE_PER_SNAPSHOT"
+    return copy(
+      minOccurrences = minOccurrences.coerceAtLeast(1),
+      windowSeconds = windowSeconds.coerceAtLeast(1),
+      cooldownMs = cooldownMs.coerceAtLeast(50),
+      debounceMs = debounceMs.coerceAtLeast(50),
+      countMode = cm
+    )
+  }
+}
+
+object DetectionSettingsStore { val current = AtomicReference(DetectionSettings()) }
 
 class MainActivity: FlutterActivity() {
   private val CHANNEL = "nacky/android"
@@ -46,7 +75,7 @@ class MainActivity: FlutterActivity() {
           }
           "updatePatterns" -> {
             val arg = call.arguments
-            val update = PatternRepository.updateFromPayload(arg)
+            val update = PatternRepository.updateFromPayload(arg, applicationContext)
             if (update.ok) {
               Log.i(
                 "Nacky",
@@ -61,6 +90,29 @@ class MainActivity: FlutterActivity() {
               ForbiddenStore.words = legacyWords.mapNotNull { it?.toString()?.lowercase() }.toSet()
             }
             result.success(null)
+          }
+          "updateSettings" -> {
+            try {
+              val map = call.arguments as? Map<*, *> ?: emptyMap<String, Any>()
+              val s = DetectionSettings(
+                liveEnabled = map["liveEnabled"] as? Boolean ?: false,
+                monitoringEnabled = map["monitoringEnabled"] as? Boolean ?: true,
+                minOccurrences = (map["minOccurrences"] as? Number)?.toInt() ?: 3,
+                windowSeconds = (map["windowSeconds"] as? Number)?.toLong() ?: 300L,
+                cooldownMs = (map["cooldownMs"] as? Number)?.toLong() ?: 1000L,
+                countMode = map["countMode"]?.toString() ?: "UNIQUE_PER_SNAPSHOT",
+                blockHighSeverityOnly = map["blockHighSeverityOnly"] as? Boolean ?: false,
+                debounceMs = (map["debounceMs"] as? Number)?.toLong() ?: 250L,
+              ).normalized()
+              DetectionSettingsStore.current.set(s)
+              Log.i("Nacky", "updateSettings: $s")
+              try { SettingsStore.save(applicationContext, s) } catch (_: Throwable) {}
+              // TODO: apply to running MonitoringEngine / LiveTypingDetector instances once central managers exist
+              result.success(null)
+            } catch (e: Throwable) {
+              Log.e("Nacky", "updateSettings failed ${e.message}")
+              result.error("UPDATE_SETTINGS_FAILED", e.message, null)
+            }
           }
           else -> result.notImplemented()
         }

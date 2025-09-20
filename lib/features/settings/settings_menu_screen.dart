@@ -18,7 +18,13 @@ class SettingsMenuScreen extends StatelessWidget {
             onTap: () => context.push('/settings/password'),
           ),
           const Divider(height: 1),
-          // Tu pourras ajouter d’autres entrées ici (Thème, Permissions Android, etc.)
+          ListTile(
+            leading: const Icon(Icons.shield),
+            title: const Text('Détection'),
+            subtitle: const Text('Règles live & monitoring'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push('/settings/detection'),
+          ),
         ],
       ),
     );

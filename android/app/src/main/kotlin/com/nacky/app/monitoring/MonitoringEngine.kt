@@ -1,4 +1,3 @@
-
 package com.nacky.app.monitoring
 
 import com.nacky.app.engine.Match
@@ -18,7 +17,13 @@ data class MonitoringSettings(
     val cooldownMs: Long = 10_000,
     val countMode: CountMode = CountMode.UNIQUE_PER_SNAPSHOT,
     val debugHook: ((patternId: String, sourceId: String, count: Int, nowMs: Long, triggered: Boolean) -> Unit)? = null,
-)
+) {
+    fun normalized(): MonitoringSettings = copy(
+        minOccurrences = max(1, minOccurrences),
+        windowSeconds = max(1, windowSeconds),
+        cooldownMs = max(50, cooldownMs),
+    )
+}
 
 data class Detection(
     val patternId: String,
@@ -36,14 +41,17 @@ class MonitoringEngine(
     private val trie: TokenTrie,
     private val normalizer: (String) -> String,
     private val tokenizer: (String) -> List<String>,
-    val settings: MonitoringSettings = MonitoringSettings(),
+    @Volatile var settings: MonitoringSettings = MonitoringSettings(),
 ) {
     private data class Key(val patternId: String, val sourceId: String)
 
     private val buckets = mutableMapOf<Key, ArrayDeque<Long>>()
     private val lastAction = mutableMapOf<Key, Long>()
 
+    fun updateSettings(newSettings: MonitoringSettings) { this.settings = newSettings.normalized() }
+
     fun processSnapshot(sourceId: String, rawText: String, nowMs: Long): List<Detection> {
+        val local = settings // volatile read
         if (rawText.isBlank()) return emptyList()
         val norm = normalizer(rawText)
         if (norm.isBlank()) return emptyList()
@@ -54,7 +62,7 @@ class MonitoringEngine(
         if (matches.isEmpty()) return emptyList()
 
         val detections = mutableListOf<Detection>()
-        val windowStart = nowMs - settings.windowSeconds * 1000
+        val windowStart = nowMs - local.windowSeconds * 1000
 
         // Group matches by patternId so we can enforce at most one detection per pattern per call.
         val matchesByPattern = matches.groupBy { it.patternId }
@@ -67,14 +75,14 @@ class MonitoringEngine(
             while (dq.isNotEmpty() && dq.first() < windowStart) dq.removeFirst()
 
             val last = lastAction[key]
-            val inCooldown = last != null && nowMs - last < settings.cooldownMs
+            val inCooldown = last != null && nowMs - last < local.cooldownMs
             if (inCooldown) {
                 // Ignore occurrences during cooldown period for fresh counting semantics.
-                settings.debugHook?.invoke(patternId, sourceId, dq.size, nowMs, false)
+                local.debugHook?.invoke(patternId, sourceId, dq.size, nowMs, false)
                 continue
             }
 
-            val increments = when (settings.countMode) {
+            val increments = when (local.countMode) {
                 CountMode.UNIQUE_PER_SNAPSHOT -> 1
                 CountMode.ALL_MATCHES -> patternMatches.size
             }
@@ -82,7 +90,7 @@ class MonitoringEngine(
 
             val count = dq.size
             var triggered = false
-            if (count >= settings.minOccurrences) {
+            if (count >= local.minOccurrences) {
                 val rep = patternMatches.first()
                 detections.add(
                     Detection(
@@ -98,7 +106,7 @@ class MonitoringEngine(
                 // Start fresh series after detection (do not count the detection snapshot towards next series).
                 dq.clear()
             }
-            settings.debugHook?.invoke(patternId, sourceId, count, nowMs, triggered)
+            local.debugHook?.invoke(patternId, sourceId, count, nowMs, triggered)
         }
         return detections
     }
@@ -116,7 +124,7 @@ object Engines {
             trie = trie,
             normalizer = { s -> TextNormalizer.normalize(s) },
             tokenizer = { s -> Tokenizer.tokenizeUnicode(s).map { it.text } },
-            settings = settings,
+            settings = settings.normalized(),
         )
     }
 }

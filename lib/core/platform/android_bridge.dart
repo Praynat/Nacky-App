@@ -26,4 +26,10 @@ class AndroidBridge {
     if (!Platform.isAndroid) return;
     await _m.invokeMethod('updatePatterns', fullPayload);
   }
+
+  /// Updates runtime detection settings (monitoring + live) on Android side.
+  static Future<void> updateSettings(Map<String, dynamic> settings) async {
+    if (!Platform.isAndroid) return;
+    await _m.invokeMethod('updateSettings', settings);
+  }
 }

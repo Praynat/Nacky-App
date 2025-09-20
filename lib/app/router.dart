@@ -11,6 +11,7 @@ import '../features/settings/settings_password_screen.dart';
 import '../features/guardian/set_pin_screen.dart';
 import '../features/words/words_add_screen.dart';
 import '../features/words/words_manage_screen.dart';
+import '../features/settings/detection_settings_screen.dart';
 
 AppDest _routeToDest(String p) {
   return switch (p) {
@@ -49,6 +50,7 @@ final appRouter = GoRouter(
        GoRoute(path: '/settings',           builder: (_, __) => const SettingsMenuScreen()),
 GoRoute(path: '/settings/password',  builder: (_, __) => const SettingsPasswordScreen()),
 GoRoute(path: '/settings/set-pin',   builder: (_, __) => const SetPinScreen()),
+GoRoute(path: '/settings/detection', builder: (_, __) => const DetectionSettingsScreen()),
       ],
     ),
   ],

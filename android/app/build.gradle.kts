@@ -3,6 +3,7 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    kotlin("plugin.serialization") version "2.1.0"
 }
 
 android {
@@ -43,4 +44,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // Use explicit Kotlin test dependency version aligned with Flutter's bundled Kotlin (adjust if Kotlin version changes)
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:1.9.22")
+
+    // Kotlinx Serialization JSON
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 }

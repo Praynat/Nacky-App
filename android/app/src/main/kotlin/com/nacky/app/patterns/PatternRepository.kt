@@ -1,6 +1,7 @@
 package com.nacky.app.patterns
 
 import android.util.Log
+import com.nacky.app.persistence.PatternsStore
 import org.json.JSONObject
 import org.json.JSONArray
 import java.util.concurrent.atomic.AtomicReference
@@ -8,7 +9,7 @@ import java.util.concurrent.atomic.AtomicReference
 /** Thread-safe in-memory repository for compiled detection patterns. */
 object PatternRepository {
     private val patternsRef = AtomicReference<List<Pattern>>(emptyList())
-    private val lastMetaRef = AtomicReference<Map<String, Any?>>(emptyMap())
+    private val lastMetaRef = AtomicReference<Map<String, String?>>(emptyMap())
     private val versionRef = AtomicReference<Int?>(null)
 
     data class UpdateResult(
@@ -27,7 +28,7 @@ object PatternRepository {
     fun countBySeverity(): Map<String, Int> = all().groupingBy { it.severity }.eachCount()
 
     /** Accepts either a Map<String, Any?> (StandardMessageCodec) or JSON String. */
-    fun updateFromPayload(obj: Any?): UpdateResult {
+    fun updateFromPayload(obj: Any?, persistCtx: android.content.Context? = null): UpdateResult {
         return try {
             val payload = when (obj) {
                 is Map<*, *> -> fromMap(obj as Map<String, Any?>)
@@ -37,6 +38,11 @@ object PatternRepository {
             patternsRef.set(payload.patterns)
             versionRef.set(payload.version)
             lastMetaRef.set(payload.meta ?: emptyMap())
+            if (persistCtx != null) {
+                try {
+                    PatternsStore.save(persistCtx, PatternsStore.Snapshot(payload.version, payload.patterns, payload.meta))
+                } catch (_: Throwable) { }
+            }
 
             val itemTotal = payload.patterns.sumOf { it.tokensOrPhrases.size }
             val categories = payload.patterns.groupingBy { it.category }.eachCount()
@@ -101,7 +107,10 @@ object PatternRepository {
                 list.add(Pattern(id, category.lowercase(), severity.lowercase(), items.map { it.lowercase() }))
             }
         } else throw IllegalArgumentException("'patterns' not a list")
-        val meta = map["meta"] as? Map<String, Any?>
+        val metaAny = map["meta"]
+        val meta: Map<String, String?>? = if (metaAny is Map<*, *>) {
+            metaAny.entries.associate { (k, v) -> k.toString() to v?.toString() }
+        } else null
         return PatternsPayload(version = version, patterns = list, meta = meta)
     }
 
@@ -123,12 +132,12 @@ object PatternRepository {
             list.add(Pattern(id, category.lowercase(), severity.lowercase(), items.map { it.lowercase() }))
         }
         val metaObj = obj.optJSONObject("meta")
-        val meta: Map<String, Any?>? = metaObj?.let { m ->
+        val meta: Map<String, String?>? = metaObj?.let { m ->
             val keys = m.keys()
-            val map = mutableMapOf<String, Any?>()
+            val map = mutableMapOf<String, String?>()
             while (keys.hasNext()) {
                 val k = keys.next()
-                map[k] = m.opt(k)
+                map[k] = m.opt(k)?.toString()
             }
             map
         }

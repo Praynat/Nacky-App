@@ -8,30 +8,92 @@ import android.os.SystemClock
 import android.util.Log
 import java.text.Normalizer
 import java.util.Locale
-// Future: use patterns instead of flat ForbiddenStore.words
 import com.nacky.app.patterns.PatternRepository
+import com.nacky.app.persistence.PatternsStore
+import com.nacky.app.persistence.SettingsStore
 import com.nacky.app.live.LiveTypingDetector
 import com.nacky.app.live.LiveSettings
 import com.nacky.app.engine.Action
 
 class NackyAccessibilityService : AccessibilityService() {
-    // New monitoring engine (pattern-based) – legacy ForbiddenStore logic retained below.
     private val monitoringEngine by lazy { Engines.buildMonitoring() }
     private val liveEngines by lazy { Engines.buildLive() }
     private val liveDetector by lazy {
         val (trie, step2, step3) = liveEngines
-        LiveTypingDetector(trie, step2, step3, LiveSettings(), observer = null)
+        LiveTypingDetector(trie, step2, step3, LiveSettings(), observer = null).also { Engines.registerLiveDetector(it) }
     }
-    private val LIVE_ENGINE_ENABLED = true // TODO: settings toggle
-    override fun onServiceConnected() {}
+    override fun onServiceConnected() {
+        // 1. Load persisted settings (if any) into in-memory store
+        val loadedSettings = try { SettingsStore.load(applicationContext) } catch (_: Throwable) { null }
+        loadedSettings?.let { DetectionSettingsStore.current.set(it) }
+
+        // 2. Load persisted patterns (only if repo empty to avoid clobbering a push done earlier in session)
+        val loadedPatterns = try {
+            if (PatternRepository.all().isEmpty()) PatternsStore.load(applicationContext) else null
+        } catch (_: Throwable) { null }
+        if (loadedPatterns != null) {
+            PatternRepository.updateFromPayload(
+                mapOf(
+                    "version" to loadedPatterns.version,
+                    "patterns" to loadedPatterns.patterns.map { p ->
+                        mapOf(
+                            "id" to p.id,
+                            "category" to p.category,
+                            "severity" to p.severity,
+                            "tokensOrPhrases" to p.tokensOrPhrases
+                        )
+                    },
+                    "meta" to loadedPatterns.meta
+                ),
+                applicationContext
+            )
+        }
+
+        // 3. Compute signature and skip heavy rebuilds if unchanged
+        val sig = try { Engines.computeSignature() } catch (_: Throwable) { null }
+        val rebuild = sig == null || Engines.shouldRebuild(sig)
+        if (rebuild) {
+            // Force builds (lazy) only when signature changed
+            try { monitoringEngine } catch (_: Throwable) {}
+            try { liveEngines } catch (_: Throwable) {}
+            try { liveDetector } catch (_: Throwable) {}
+        }
+
+        // 4. Apply runtime settings to engines (Monitoring + Live) without exposing raw text
+        val effective = DetectionSettingsStore.current.get()
+        try {
+            Engines.updateMonitoringSettings(
+                com.nacky.app.monitoring.MonitoringSettings(
+                    minOccurrences = effective.minOccurrences,
+                    windowSeconds = effective.windowSeconds, // Long already
+                    cooldownMs = effective.cooldownMs, // Long already
+                    countMode = if (effective.countMode == "ALL_MATCHES") com.nacky.app.monitoring.CountMode.ALL_MATCHES else com.nacky.app.monitoring.CountMode.UNIQUE_PER_SNAPSHOT
+                )
+            )
+            Engines.updateLiveSettings(
+                LiveSettings(
+                    debounceMs = effective.debounceMs, // Long
+                    blockHighSeverityOnly = effective.blockHighSeverityOnly
+                )
+            )
+        } catch (_: Throwable) {}
+
+        // 5. Concise logging (no raw user content)
+        try {
+            val patCount = PatternRepository.all().size
+            val version = loadedPatterns?.version ?: "-"
+            Log.i("Nacky", "ServiceConnected: settingsLoaded=${loadedSettings!=null} patternsLoaded=${loadedPatterns!=null} version=$version patternCount=$patCount live=${effective.liveEnabled} monitoring=${effective.monitoringEnabled} rebuild=$rebuild")
+        } catch (_: Throwable) {}
+    }
     override fun onInterrupt() {}
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        val settings = DetectionSettingsStore.current.get()
         when (event.eventType) {
             AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> {
-                handleTyping(event)
-                if (LIVE_ENGINE_ENABLED) {
+                handleTyping(event) // legacy flat word logic
+                if (settings.liveEnabled) {
                     try {
                         val text = event.text?.firstOrNull()
                         liveDetector.onTextChanged(event, text)
@@ -39,25 +101,34 @@ class NackyAccessibilityService : AccessibilityService() {
                 }
             }
             AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                // Legacy content handling
                 handleContent()
-                // New monitoring path
-                val src = event.packageName?.toString() ?: "unknown"
-                val nowMs = SystemClock.elapsedRealtime()
-                val snapshot = extractVisibleTextSafely(rootInActiveWindow)
-                if (!snapshot.isNullOrBlank()) {
-                    val detections = monitoringEngine.processSnapshot(src, snapshot, nowMs)
-                    for (d in detections) {
-                        // Privacy-safe: no raw snapshot text logged
-                        Log.i("Nacky", "MON hit src=$src pat=${d.patternId} sev=${d.severity}")
+                if (settings.monitoringEnabled) {
+                    val src = event.packageName?.toString() ?: "unknown"
+                    val nowMs = SystemClock.elapsedRealtime()
+                    val snapshot = extractVisibleTextSafely(rootInActiveWindow)
+                    if (!snapshot.isNullOrBlank()) {
+                        val effectiveSettings = settings
+                        // Apply runtime monitoring overrides
+                        monitoringEngine.updateSettings(
+                            monitoringEngine.settings.copy(
+                                minOccurrences = effectiveSettings.minOccurrences,
+                                windowSeconds = effectiveSettings.windowSeconds.toLong(),
+                                cooldownMs = effectiveSettings.cooldownMs.toLong(),
+                                countMode = if (effectiveSettings.countMode == "ALL_MATCHES") com.nacky.app.monitoring.CountMode.ALL_MATCHES else com.nacky.app.monitoring.CountMode.UNIQUE_PER_SNAPSHOT
+                            )
+                        )
+                        val detections = monitoringEngine.processSnapshot(src, snapshot, nowMs)
+                        for (d in detections) {
+                            Log.i("Nacky", "MON hit src=$src pat=${d.patternId} sev=${d.severity}")
+                        }
                     }
                 }
             }
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                 handleContent()
-                if (LIVE_ENGINE_ENABLED) liveDetector.onFocusChanged()
+                if (settings.liveEnabled) liveDetector.onFocusChanged()
             }
-            AccessibilityEvent.TYPE_VIEW_FOCUSED -> if (LIVE_ENGINE_ENABLED) liveDetector.onFocusChanged()
+            AccessibilityEvent.TYPE_VIEW_FOCUSED -> if (settings.liveEnabled) liveDetector.onFocusChanged()
         }
     }
 
@@ -128,7 +199,6 @@ class NackyAccessibilityService : AccessibilityService() {
         return c
     }
 
-    // Extract visible text with safety constraints; never logs raw snapshot.
     private fun extractVisibleTextSafely(root: AccessibilityNodeInfo?): String {
         if (root == null) return ""
         val maxNodes = 500
@@ -161,43 +231,17 @@ class NackyAccessibilityService : AccessibilityService() {
                         val child = node.getChild(i)
                         if (child != null) queue.addLast(child)
                     }
-                } catch (_: Throwable) {
-                    // Swallow node-level issues
-                }
+                } catch (_: Throwable) { }
             }
-        } catch (_: Throwable) {
-            return ""
-        }
+        } catch (_: Throwable) { return "" }
         return seenTexts.joinToString(" ")
     }
 }
 
-/**
- * Normalizes text for consistent processing across languages and platforms.
- * 
- * This function:
- * - Converts to lowercase
- * - Removes accent marks (é → e) using Unicode NFD normalization
- * - Squashes repeated separators (multiple spaces → single space)
- * - Preserves all scripts (Hebrew, Arabic, etc.)
- * 
- * Examples:
- * - "Crème brûlée!" → "creme brulee!"
- * - "HELLO   WORLD" → "hello world"
- * - "עברית123" → "עברית123"
- */
 private fun String.normalizeWord(): String {
     if (this.isEmpty()) return this
-    
-    // Step 1: Trim and lowercase
     val lower = this.trim().lowercase(Locale.ROOT)
-    
-    // Step 2: Unicode NFD normalization to decompose characters
     val norm = Normalizer.normalize(lower, Normalizer.Form.NFD)
-    
-    // Step 3: Remove combining marks (diacritics)
     val withoutDiacritics = norm.replace("\\p{Mn}+".toRegex(), "")
-    
-    // Step 4: Squash repeated separators (spaces, tabs, etc.)
     return withoutDiacritics.replace("\\s+".toRegex(), " ").trim()
 }

@@ -91,5 +91,90 @@ When adding a new rule:
 2. Provide unit tests asserting both the decision.action and reason ordering.
 3. Consider whether Live suppression should hide the new ALLOW reason.
 
+## 9. Android Persistence
+The Android module persists both detection patterns and detection settings so they survive process death and service restarts.
+
+### File Locations
+All persistence lives under the app private storage directory:
+```
+<filesDir>/detection/
+  ├─ patterns.json
+  └─ detection_settings.json
+```
+Files are written atomically (temp write + rename fallback) via a SafeIO helper to minimize partial write risk.
+
+### Serialization
+Implemented with `kotlinx-serialization` (no reflection, fast, stable across JVM & Android unit tests). Unknown keys are ignored for forward compatibility.
+
+#### detection_settings.json schema
+```jsonc
+{
+  "liveEnabled": Boolean,
+  "monitoringEnabled": Boolean,
+  "minOccurrences": Int,
+  "windowSeconds": Long,
+  "cooldownMs": Long,
+  "countMode": "ALL_MATCHES" | "UNIQUE_PER_SNAPSHOT",
+  "blockHighSeverityOnly": Boolean,
+  "debounceMs": Long
+}
+```
+
+#### patterns.json schema
+```jsonc
+{
+  "version": Int?,            // optional version marker for future migrations
+  "patterns": [
+    {
+      "id": String,
+      "category": String,     // stored as provided (matching normalization happens at runtime)
+      "severity": String,     // low|medium|high
+      "tokensOrPhrases": [ String, ... ]
+    }
+  ],
+  "meta": {                   // optional metadata map (string -> string)
+     "source": String?,
+     // ... other string keys allowed, unknown keys ignored when reading later
+  }
+}
+```
+
+### Load Sequence (Service Boot)
+On `AccessibilityService.onServiceConnected`:
+1. Load `detection_settings.json` (if present) into `DetectionSettingsStore`.
+2. Load `patterns.json` only if the in-memory repository is still empty (avoids overwriting a just-pushed live update).
+3. Rebuild monitoring & live engines so token tries reflect restored patterns.
+4. Apply settings to `MonitoringEngine` & `LiveTypingDetector` (debounce, thresholds, modes).
+
+### Privacy & Safety
+- No raw user / snapshot text is ever persisted. Only pattern definitions and numeric / boolean thresholds are written.
+- Logs at boot summarize counts & flags (pattern count, version) without reproducing sensitive content.
+- Corrupted files fail gracefully: deserialization returns null and the system proceeds with defaults or waits for a new push from Flutter.
+
+## 10. Troubleshooting Persistence
+| Scenario | Symptom | Behavior | Action |
+|----------|---------|----------|--------|
+| Missing files (first run / cleared storage) | No patterns loaded at boot | Engines build with empty tries until a push arrives | Push patterns from Flutter; optional: verify `patterns.json` created afterward |
+| Corrupted `patterns.json` | Load returns null | Patterns remain empty; log line shows `patternsLoaded=false` | Trigger a resend from Flutter; corruption is not fatal |
+| Corrupted `detection_settings.json` | Settings revert to defaults | Monitoring / live may use conservative defaults | Resend settings payload; file will be overwritten |
+| Stale patterns after update | Old matches still appear | Live engines built before update | Ensure update call triggers persistence + consider forcing service reconnect or add explicit engine rebuild API |
+| Unexpected pattern count at boot | Log shows fewer entries | Possibly repo already populated before persistence load or previous save failed | Check that update path called `PatternsStore.save`; re‑push patterns |
+
+### Quick Checks
+1. Inspect directory via `adb shell ls /data/data/<appId>/files/detection`.
+2. Cat the JSON (do NOT share externally) to verify schema keys only.
+3. If missing or corrupt, push patterns/settings again from Flutter UI.
+
 ---
 _Last updated: 2025-09-21_
+
+## 11. Startup Optimization: Signature-Based Rebuild Skipping
+To reduce cold-start overhead, the service computes a lightweight integer signature on connect:
+
+Signature components:
+- Hash of current pattern list (ids + token sequences)
+- Key detection settings influencing engine structure / behavior: `minOccurrences`, `windowSeconds`, `cooldownMs`, `countMode`, `blockHighSeverityOnly`, `debounceMs`, `liveEnabled`, `monitoringEnabled`, plus pattern count.
+
+If the newly computed signature matches the previously applied one, expensive trie / engine rebuilds are skipped. This avoids redundant allocation and hashing work on process restarts where no functional change occurred (e.g., only meta timestamps differed). A unit test (`EnginesSignatureTest`) asserts that modifying only non‑signature metadata (like a timestamp in `meta`) does not trigger a rebuild.
+
+When patterns or relevant settings change, the signature changes and rebuild occurs automatically, ensuring correctness is preserved while optimizing the steady state.

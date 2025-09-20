@@ -18,7 +18,7 @@ class LiveTypingDetector(
     private val trie: TokenTrie,
     private val step2: Step2Engine,
     private val step3: Step3Engine,
-    private val settings: LiveSettings = LiveSettings(),
+    private var settings: LiveSettings = LiveSettings(),
     private val observer: LiveObserver? = null,
     private val nowProvider: NowProvider = RealNowProvider(),
     private val scheduler: DebounceScheduler = RealDebounceScheduler(),
@@ -27,6 +27,8 @@ class LiveTypingDetector(
     private var lastEventWallMs: Long = 0L
     private var debounceScheduled = false
     private val boundaryRegex = Regex("""[\u0020\p{P}\p{S}\d_\-]""")
+
+    fun updateSettings(newSettings: LiveSettings) { settings = newSettings }
 
     fun onTextChanged(event: AccessibilityEvent, originalText: CharSequence?) { try { processRawInput(originalText) } catch (_: Throwable) {} }
 
@@ -103,13 +105,12 @@ class LiveTypingDetector(
         try { step3.decide(normalized, cand) } catch (_: Throwable) { Decision(Action.ALLOW, "ERR", "") }
 
     private fun recordDecision(patternId: String, severity: String, action: Action, reason: String, sink: MutableList<LiveDecision>) {
-        // Ensure we ALWAYS add the decision to sink even if android.util.Log (not mocked in JVM tests) throws.
         try {
             android.util.Log.i(
                 "Nacky",
                 "LIVE ${(if (action == Action.BLOCK) "block" else "warn")} pat=$patternId sev=$severity reason=$reason"
             )
-        } catch (_: Throwable) { /* ignore logging issues in unit tests */ }
+        } catch (_: Throwable) { }
         try { observer?.onDecision(patternId, severity, action, reason) } catch (_: Throwable) { }
         sink.add(LiveDecision(patternId, severity, action, reason))
     }
