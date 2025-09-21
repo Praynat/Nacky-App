@@ -23,7 +23,6 @@ class _WordsAddScreenState extends State<WordsAddScreen> {
     if (!mounted) return;
     if (ok) {
     final words = await _repo.getAllForFilter(); 
-    await AndroidBridge.sendWordList(words);    
     final patterns = await _repo.buildPatterns();
     final payload = patternsToPayload(patterns);
     payload['meta'] = {

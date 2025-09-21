@@ -1,40 +1,40 @@
-# Word Detection Inventory (Post V2 Migration)
+# Word Detection Inventory (Post Legacy Removal)
 
-Branch: `feature/word-detection-v2`
+Branch: `copilot/fix-422b1d63-746e-4da1-8d0c-d1a31c32d120`
 Date: 2025-09-21
+
+**Legacy removed**: ForbiddenStore + sendWordList deprecated in favor of unified pattern pipeline.
 
 ## Dart / Flutter Layer
 
 - `lib/core/normalize.dart` – Normalization helper: lowercase, pseudo-NFD decomposition, strip diacritics, collapse whitespace.
 - `lib/features/words/words_repo.dart` – Loads seed list (`assets/DefaultWords.txt`), persists user list via SharedPreferences, merges (seed ∪ user) for filter push, normalizes on add/remove.
-- `lib/features/words/words_add_screen.dart` – UI to add words; after add pulls merged list and pushes to Android via `AndroidBridge.sendWordList`.
-- `lib/features/words/words_manage_screen.dart` – UI for viewing/editing/removing user words; on changes re-sends merged normalized list to Android (guardian PIN gate).
-- `lib/features/dashboard/dashboard_screen.dart` – On init (via `_pushWordsToAndroid`) sends current merged word list to Android service.
-- `lib/core/platform/android_bridge.dart` – MethodChannel wrapper (`nacky/android`) exposing `sendWordList`, permission queries & requests for Accessibility Service.
+- `lib/features/words/words_add_screen.dart` – UI to add words; after add sends pattern payload to Android via `AndroidBridge.updatePatternsFull`.
+- `lib/features/words/words_manage_screen.dart` – UI for viewing/editing/removing user words; on changes re-sends pattern payload to Android (guardian PIN gate).
+- `lib/features/dashboard/dashboard_screen.dart` – On init (via `_pushWordsToAndroid`) sends current pattern payload to Android service.
+- `lib/core/platform/android_bridge.dart` – MethodChannel wrapper (`nacky/android`) exposing `updatePatternsFull`, permission queries & requests for Accessibility Service.
 - `lib/app/router.dart` – Declares routes for words add/manage screens (navigation wiring only).
 - `lib/app/shell.dart` – Navigation entry providing destination for words feature (menu tile).
 - `assets/DefaultWords.txt` – Seed forbidden word list shipped with app (raw text, one per line; normalized at load).
 
 ## Android (Kotlin) Layer
 
-- `android/app/src/main/kotlin/com/nacky/app/MainActivity.kt` – Defines MethodChannel `nacky/android`; handles `sendWordList`, stores incoming normalized-lowercased set into `ForbiddenStore.words`; exposes accessibility permission checks.
-- `android/app/src/main/kotlin/com/nacky/app/ForbiddenStore.kt` – Thread-safe (volatile) holder for current forbidden words and simple throttle timestamp logic (`shouldThrottle`).
-- `android/app/src/main/kotlin/com/nacky/app/NackyAccessibilityService.kt` – AccessibilityService performing live text interception & content tree scanning; normalizes input, tokenizes on `[^a-z0-9]+`, matches tokens against `ForbiddenStore.words`, blocks by clearing input / navigating away when matches or threshold (≥3) encountered; duplicates a Kotlin-side normalization function (parallel logic to Dart version).
+- `android/app/src/main/kotlin/com/nacky/app/MainActivity.kt` – Defines MethodChannel `nacky/android`; handles `updatePatterns`, calls `PatternRepository.updateFromPayload()`; exposes accessibility permission checks.
+- `android/app/src/main/kotlin/com/nacky/app/NackyAccessibilityService.kt` – AccessibilityService using pattern-based detection via LiveTypingDetector for live typing and MonitoringEngine for content scanning; logs "Service connected: pattern pipeline ACTIVE (legacy removed)" on startup.
 
 ## Notable Behaviors / Coupling
 
-- Word list push is manual and triggered from multiple UI points (dashboard init, add screen, manage screen); no background sync or diffing—full list resent each time.
-- Normalization logic is duplicated (Dart vs Kotlin) with slightly different implementations (Kotlin uses true Unicode NFD via `Normalizer`; Dart uses limited custom decomposition table).
-- Matching strategy: exact token match on ASCII-lowercased alphanumerics; non a-z0-9 separators removed; multi-word phrases not supported.
-- No incremental updates—Android maintains only latest full set in memory (`Set<String>`); no persistence across process death shown (no storage of words on Android side besides runtime memory).
-- Throttling prevents rapid repeated navigation actions (2s window) via `ForbiddenStore.shouldThrottle()`.
+- Pattern payload updates are triggered from multiple UI points (dashboard init, add screen, manage screen) using structured pattern format via `updatePatternsFull`.
+- Single unified pattern pipeline: PatternRepository → Trie → Step2 Variant → Step3 Rules → LiveTypingDetector & MonitoringEngine.
+- No legacy flat token matching—all detection uses multi-stage pattern engine with phrase support, normalization variants, and contextual rules.
+- Pattern data persisted in PatternRepository with structured JSON payload format including categories and severity levels.
 
 ## Hard-Coded / Direct Logic
 
 - Hard-coded seed list asset path: `assets/DefaultWords.txt` in Dart.
-- Direct matching loop in `NackyAccessibilityService.matchesForbidden` & `countMatches` (linear scan over tokens, O(T) set membership checks; efficient due to HashSet usage).
-- Threshold of `>= 3` forbidden tokens in view tree triggers forced navigation (hard-coded constant inside service).
-- Throttle window default 2000 ms (hard-coded in `ForbiddenStore.shouldThrottle`).
+- Pattern-based detection using TokenTrie with efficient prefix matching and multi-token phrase support.
+- Detection decisions logged with pattern ID and severity (no enforcement actions yet implemented).
+- Pattern pipeline stages: Step1 (Trie) → Step2 (Variants) → Step3 (Rules) with configurable debounce settings.
 
 ## V2 Detection Pipeline Status
 

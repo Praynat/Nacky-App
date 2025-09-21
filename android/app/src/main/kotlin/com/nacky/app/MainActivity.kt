@@ -68,11 +68,6 @@ class MainActivity: FlutterActivity() {
               result.error("OPEN_SETTINGS_FAILED", e.message, null)
             }
           }
-          "sendWordList" -> {
-            val list = (call.argument<List<String>>("words") ?: emptyList())
-            ForbiddenStore.words = list.map { it.lowercase() }.toSet()
-            result.success(null)
-          }
           "updatePatterns" -> {
             val arg = call.arguments
             val update = PatternRepository.updateFromPayload(arg, applicationContext)
@@ -83,11 +78,6 @@ class MainActivity: FlutterActivity() {
               )
             } else {
               Log.e("Nacky", "updatePatterns: parse failed ${update.error}")
-            }
-            // Legacy support: if a flat words list still arrives (old app version)
-            val legacyWords = (if (arg is Map<*, *>) arg["words"] else null) as? List<*>
-            if (legacyWords != null && legacyWords.isNotEmpty()) {
-              ForbiddenStore.words = legacyWords.mapNotNull { it?.toString()?.lowercase() }.toSet()
             }
             result.success(null)
           }
