@@ -172,8 +172,7 @@ void initState() {
 Future<void> _pushWordsToAndroid() async {
   try {
     final repo = WordsRepo();
-    final words = await repo.getAllForFilter(); // legacy push
-    await AndroidBridge.sendWordList(words);
+    final words = await repo.getAllForFilter();
     // New structured patterns payload
     final patterns = await repo.buildPatterns();
     final payload = patternsToPayload(patterns);

@@ -47,7 +47,6 @@ class _WordsManageScreenState extends State<WordsManageScreen> {
       await _repo.remove(oldWord);
       await _repo.add(result);
       final words = await _repo.getAllForFilter();
-      await AndroidBridge.sendWordList(words);
       final patterns = await _repo.buildPatterns();
       final payload = patternsToPayload(patterns);
       payload['meta'] = {
@@ -114,7 +113,6 @@ class _WordsManageScreenState extends State<WordsManageScreen> {
                               );
                             } else {
                               final words = await _repo.getAllForFilter();
-                              await AndroidBridge.sendWordList(words);
                               final patterns = await _repo.buildPatterns();
                               final payload = patternsToPayload(patterns);
                               payload['meta'] = {
