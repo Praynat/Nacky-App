@@ -83,20 +83,21 @@ Missing / Planned:
 
 ---
 
-## 6. Word Detection Engine (CURRENT BASELINE) (EVOLVING)
+## 6. Word Detection Engine (CURRENT STATE)
+**Legacy removed**: Unified pattern pipeline now active.
 Current Flow (Android):
-1. Flutter gathers combined list (default + user) → sends to Android via `sendWordList`.
-2. Kotlin stores set in `ForbiddenStore.words` (lowercased).
-3. Accessibility traversal (`dfs`) collects text and content descriptions.
-4. Text normalized → split by regex `[^a-z0-9]+` → tokens.
-5. For each token: membership check in set.
-6. A simple counter of matches returned (no enforcement logic integrated).
+1. Flutter builds structured pattern payload → sends to Android via `updatePatterns`.
+2. PatternRepository processes payload into Trie + Step2/Step3 engines.
+3. LiveTypingDetector handles TYPE_VIEW_TEXT_CHANGED with debounce.
+4. MonitoringEngine processes TYPE_WINDOW_CONTENT_CHANGED with aggregation.
+5. Detection results logged with pattern ID and severity level.
 
-Gaps vs Target:
-- Phrases not recognized (e.g., “reverse cowgirl” split into tokens “reverse”, “cowgirl”).
-- Non-Latin scripts effectively discarded (split regex excludes them).
-- No contextual or multi-hit scoring.
-- No sliding window / sequence automaton.
+Capabilities:
+- Multi-token phrase matching ("reverse cowgirl" as single pattern).
+- Unicode-aware tokenization preserving non-Latin scripts.
+- Variant detection (leet speak, spacing, separators).
+- Contextual rules to reduce false positives.
+- Configurable debounce and cooldown windows.
 
 ---
 
